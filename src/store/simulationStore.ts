@@ -3,6 +3,8 @@ import { subscribeWithSelector } from 'zustand/middleware';
 import type { SimulationInputs, SimulationResults, CalibrationProfile, Snapshot, Case, RunLogEntry, LeaderboardEntry } from '../sim/types';
 import { DEFAULT_INPUTS, DEFAULT_CALIBRATION } from '../config/defaults';
 import { runSimulation } from '../sim/simulator';
+import { wsClient } from '../services/wsClient';
+import type { StudentSummary, ServerLeaderboardEntry } from '../services/wsClient';
 
 // Load calibration profiles from localStorage
 function loadStoredProfiles(): CalibrationProfile[] {
@@ -56,6 +58,18 @@ interface SimStore {
   calibrationProfiles: CalibrationProfile[];
   activeProfileId: string;
 
+  // Multiplayer state
+  multiplayerSessionId: string | null;
+  multiplayerStudentName: string;
+  multiplayerClassCode: string;
+  multiplayerRole: 'student' | 'teacher';
+  multiplayerConnected: boolean;
+  classStudents: StudentSummary[];
+  classLeaderboard: ServerLeaderboardEntry[];
+  pendingInjection: { inputPatch: Partial<SimulationInputs>; message: string } | null;
+  pendingFault: { faultType: string; faultValue: boolean | number; message: string } | null;
+  activeFaults: Record<string, boolean | number>;
+
   setInput: (key: keyof SimulationInputs, value: number) => void;
   setCalibration: (key: keyof CalibrationProfile, value: number | string) => void;
   loadCase: (c: Case) => void;
@@ -81,6 +95,14 @@ interface SimStore {
   loadCalibrationProfile: (id: string) => void;
   deleteCalibrationProfile: (id: string) => void;
   resetCalibrationToDefault: () => void;
+
+  // Multiplayer actions
+  joinMultiplayer: (studentName: string, classCode: string, role: 'student' | 'teacher', teacherToken?: string) => void;
+  leaveMultiplayer: () => void;
+  dismissInjection: () => void;
+  dismissFault: () => void;
+  teacherInjectParams: (targetSessionId: string, inputPatch: Partial<SimulationInputs>, message: string) => void;
+  teacherInjectFault: (targetSessionId: string, faultType: string, faultValue: boolean | number, message: string) => void;
 }
 
 export const useSimStore = create<SimStore>()(
@@ -102,6 +124,18 @@ export const useSimStore = create<SimStore>()(
 
     calibrationProfiles: loadStoredProfiles(),
     activeProfileId: 'default',
+
+    // Multiplayer state
+    multiplayerSessionId: null,
+    multiplayerStudentName: '',
+    multiplayerClassCode: '',
+    multiplayerRole: 'student',
+    multiplayerConnected: false,
+    classStudents: [],
+    classLeaderboard: [],
+    pendingInjection: null,
+    pendingFault: null,
+    activeFaults: {},
 
     setInput: (key, value) => {
       set(state => ({ inputs: { ...state.inputs, [key]: value } }));
@@ -146,6 +180,16 @@ export const useSimStore = create<SimStore>()(
       try {
         const results = runSimulation(inputs, calibration);
         set({ results });
+        // Send state update to server if connected
+        const { multiplayerConnected, multiplayerSessionId } = get();
+        if (multiplayerConnected && multiplayerSessionId) {
+          wsClient.send({
+            type: 'state_update',
+            sessionId: multiplayerSessionId,
+            inputs: inputs as unknown as Record<string, number>,
+            results: results as unknown as Record<string, unknown>,
+          });
+        }
       } catch (e) {
         console.error('Simulation error:', e);
       }
@@ -268,6 +312,125 @@ export const useSimStore = create<SimStore>()(
     resetCalibrationToDefault: () => {
       set({ calibration: { ...DEFAULT_CALIBRATION }, activeProfileId: 'default' });
       get().recompute();
+    },
+
+    // ── Multiplayer actions ──────────────────────────────────────────────────
+    joinMultiplayer: (studentName, classCode, role, teacherToken) => {
+      const sessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+      // Register message handler
+      wsClient.onMessage((msg) => {
+        switch (msg.type) {
+          case 'welcome':
+            set({
+              multiplayerSessionId: msg.sessionId,
+              multiplayerClassCode: msg.classCode,
+              multiplayerConnected: true,
+            });
+            // Send initial state
+            {
+              const { inputs, results } = get();
+              if (results) {
+                wsClient.send({
+                  type: 'state_update',
+                  sessionId: msg.sessionId,
+                  inputs: inputs as unknown as Record<string, number>,
+                  results: results as unknown as Record<string, unknown>,
+                });
+              }
+            }
+            break;
+          case 'injected_inputs': {
+            const patch = msg.inputPatch as Partial<SimulationInputs>;
+            set({ pendingInjection: { inputPatch: patch, message: msg.message } });
+            // Apply patch immediately
+            (Object.keys(patch) as Array<keyof SimulationInputs>).forEach(k => {
+              get().setInput(k, patch[k] as number);
+            });
+            break;
+          }
+          case 'injected_fault':
+            set(state => ({
+              pendingFault: { faultType: msg.faultType, faultValue: msg.faultValue, message: msg.message },
+              activeFaults: { ...state.activeFaults, [msg.faultType]: msg.faultValue },
+            }));
+            break;
+          case 'class_state':
+            set({ classStudents: msg.students });
+            break;
+          case 'leaderboard_update':
+            set({ classLeaderboard: msg.leaderboard });
+            break;
+          default:
+            break;
+        }
+      });
+
+      set({
+        multiplayerStudentName: studentName,
+        multiplayerClassCode: classCode,
+        multiplayerRole: role,
+        multiplayerConnected: false,
+        multiplayerSessionId: sessionId,
+      });
+
+      try {
+        wsClient.connect('ws://localhost:3001');
+        // send join after a brief moment for connection to establish
+        const joinMsg = () => {
+          wsClient.send({
+            type: 'join',
+            sessionId,
+            studentName,
+            classCode,
+            role,
+            ...(teacherToken ? { teacherToken } : {}),
+          });
+        };
+        // Attempt immediately; wsClient queues until open via readyState check
+        // Use small delay to allow open event
+        setTimeout(joinMsg, 300);
+      } catch (e) {
+        console.warn('WS connect failed:', e);
+      }
+    },
+
+    leaveMultiplayer: () => {
+      wsClient.disconnect();
+      set({
+        multiplayerConnected: false,
+        multiplayerSessionId: null,
+        multiplayerStudentName: '',
+        multiplayerClassCode: '',
+        multiplayerRole: 'student',
+        classStudents: [],
+        classLeaderboard: [],
+        pendingInjection: null,
+        pendingFault: null,
+        activeFaults: {},
+      });
+    },
+
+    dismissInjection: () => set({ pendingInjection: null }),
+    dismissFault: () => set({ pendingFault: null }),
+
+    teacherInjectParams: (targetSessionId, inputPatch, message) => {
+      wsClient.send({
+        type: 'teacher_inject',
+        targetSessionId,
+        inputPatch: inputPatch as Record<string, number>,
+        message,
+      });
+    },
+
+    teacherInjectFault: (targetSessionId, faultType, faultValue, message) => {
+      wsClient.send({
+        type: 'teacher_fault',
+        targetSessionId,
+        faultType,
+        faultValue,
+        message,
+      });
     },
   }))
 );

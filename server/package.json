@@ -1,0 +1,15 @@
+{
+  "name": "spraysimdk-server",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch index.js",
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.14.2",
+    "uuid": "^9.0.0",
+    "better-sqlite3": "^9.2.2"
+  }
+}

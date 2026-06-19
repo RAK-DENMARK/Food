@@ -17,6 +17,7 @@ export function Layout({ children }: LayoutProps) {
     { id: 'cases', label: t.tabs.cases },
     { id: 'kalibrering', label: t.tabs.kalibrering },
     { id: 'spilLog', label: t.tabs.spilLog },
+    { id: 'klasse', label: t.tabs.klasse },
   ];
 
   return (

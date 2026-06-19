@@ -9,6 +9,7 @@ import { CaseLibrary } from './components/CaseLibrary';
 import { CalibrationPanel } from './components/CalibrationPanel';
 import { Gamification } from './components/Gamification';
 import { TrendChart } from './components/TrendChart';
+import { MultiplayerPanel } from './components/MultiplayerPanel';
 import { useSimStore } from './store/simulationStore';
 
 function SimuleringTab() {
@@ -57,6 +58,7 @@ export default function App() {
       {activeTab === 'cases' && <CaseLibrary />}
       {activeTab === 'kalibrering' && <CalibrationPanel />}
       {activeTab === 'spilLog' && <SpilLogTab />}
+      {activeTab === 'klasse' && <MultiplayerPanel />}
     </Layout>
   );
 }
