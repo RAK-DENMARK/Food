@@ -16,6 +16,7 @@ export function Layout({ children }: LayoutProps) {
     { id: 'scenarieanalyse', label: t.tabs.scenarieanalyse },
     { id: 'cases', label: t.tabs.cases },
     { id: 'kalibrering', label: t.tabs.kalibrering },
+    { id: 'spilLog', label: t.tabs.spilLog },
   ];
 
   return (

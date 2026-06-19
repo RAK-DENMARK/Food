@@ -24,7 +24,10 @@ export const DEFAULT_INPUTS: SimulationInputs = {
 };
 
 export const DEFAULT_CALIBRATION: CalibrationProfile = {
+  profileId: 'default',
   name: 'Standard sødmælkspulver',
+  description: 'Standard kalibrering for sødmælkspulver',
+  createdAt: 0,
   gab_M0: 0.06,
   gab_C: 5,
   gab_K: 0.9,

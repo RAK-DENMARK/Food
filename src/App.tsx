@@ -7,6 +7,8 @@ import { StickyCurve } from './components/StickyCurve';
 import { ScenarioComparison } from './components/ScenarioComparison';
 import { CaseLibrary } from './components/CaseLibrary';
 import { CalibrationPanel } from './components/CalibrationPanel';
+import { Gamification } from './components/Gamification';
+import { TrendChart } from './components/TrendChart';
 import { useSimStore } from './store/simulationStore';
 
 function SimuleringTab() {
@@ -32,6 +34,19 @@ function SimuleringTab() {
   );
 }
 
+function SpilLogTab() {
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div>
+        <Gamification />
+      </div>
+      <div>
+        <TrendChart />
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const { activeTab } = useSimStore();
 
@@ -41,6 +56,7 @@ export default function App() {
       {activeTab === 'scenarieanalyse' && <ScenarioComparison />}
       {activeTab === 'cases' && <CaseLibrary />}
       {activeTab === 'kalibrering' && <CalibrationPanel />}
+      {activeTab === 'spilLog' && <SpilLogTab />}
     </Layout>
   );
 }

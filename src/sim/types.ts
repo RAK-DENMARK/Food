@@ -1,5 +1,8 @@
 export interface CalibrationProfile {
+  profileId: string;
   name: string;
+  description: string;
+  createdAt: number;
   gab_M0: number;
   gab_C: number;
   gab_K: number;
@@ -79,4 +82,43 @@ export interface Case {
   goalsDa: string[];
   goalsEn: string[];
   facitHints: string[];
+}
+
+export interface RunLogEntry {
+  timestamp: number;
+  t_elapsed_s: number;
+  // Key inputs
+  T_main_in: number;
+  RH_amb: number;
+  m_feed: number;
+  // Key results
+  T_out: number;
+  X_out: number;
+  RH_out: number;
+  w_p: number;
+  m_powder: number;
+  m_evap: number;
+  E_per_kg_powder: number;
+  delta_T_sticky: number;
+  qualityIndex: number;
+  safetyRisk: string;
+}
+
+export interface LeaderboardEntry {
+  id: string;
+  playerName: string;
+  timestamp: number;
+  totalScore: number;
+  scoreEnergy: number;
+  scorePerformance: number;
+  scoreQuality: number;
+  scoreSafety: number;
+}
+
+export interface MeasuredPoint {
+  label: string;
+  inputs: Partial<SimulationInputs>;
+  measured_T_out: number;
+  measured_w_p: number;
+  measured_m_powder: number;
 }
