@@ -1,0 +1,38 @@
+import type { SimulationInputs, CalibrationProfile } from '../sim/types';
+
+export const DEFAULT_INPUTS: SimulationInputs = {
+  T_amb: 10,
+  RH_amb: 70,
+  m_feed: 8960,
+  x_ds: 0.50,
+  T_feed: 70,
+  m_main_air: 100000,
+  T_main_in: 180,
+  X_main_in: 6,
+  m_ifb: 35000,
+  T_ifb: 50,
+  X_ifb: 6,
+  m_efb: 15000,
+  T_efb: 12,
+  X_efb: 6,
+  nozzlePressure: 250,
+  nozzleCount: 4,
+  homogenPressure1: 150,
+  homogenPressure2: 50,
+  lecithin: 0,
+  co2: 0,
+};
+
+export const DEFAULT_CALIBRATION: CalibrationProfile = {
+  name: 'Standard sødmælkspulver',
+  gab_M0: 0.06,
+  gab_C: 5,
+  gab_K: 0.9,
+  Tg_s: 101,
+  Tg_w: -137,
+  k_GT: 6.7,
+  deltaT_sp: 20,
+  f_loss: 0.07,
+  cp_solids: 1.5,
+  maxEvapCapacity: 5000,
+};
