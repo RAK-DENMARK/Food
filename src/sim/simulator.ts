@@ -22,11 +22,13 @@ export function runSimulation(
     lecithin,
   } = inputs;
 
-  // Convert X from g/kg to kg/kg internally
-  const X_main = X_main_in / 1000;
+  // Main drying air is drawn from the atmosphere and heated; heating does NOT change absolute
+  // humidity, so X_main = X_amb. X_main_in is ignored for the main air stream and only kept
+  // in the input struct for pro-level conditioned-air scenarios (future).
+  const X_amb = absoluteHumidity(T_amb, RH_amb / 100);
+  const X_main = X_amb; // ambient humidity drives the main air moisture content
   const X_ifb_kgkg = X_ifb / 1000;
   const X_efb_kgkg = X_efb / 1000;
-  const X_amb = absoluteHumidity(T_amb, RH_amb / 100);
 
   // Total dry air mass flow (kg/h)
   const m_da = m_main_air + m_ifb + m_efb;

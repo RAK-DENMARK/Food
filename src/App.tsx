@@ -14,20 +14,35 @@ import { useSimStore } from './store/simulationStore';
 
 function SimuleringTab() {
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-      {/* Left/Main: P&I + Sticky Curve */}
-      <div className="xl:col-span-2 space-y-4">
-        <ProcessDiagram />
-        <StickyCurve />
+    // Fixed-height grid that fills the viewport below the header — no page scroll
+    <div className="grid grid-cols-[1fr_320px_280px] gap-3 h-[calc(100vh-130px)]">
+
+      {/* Col 1: P&I diagram (top) + Sticky curve (bottom) */}
+      <div className="flex flex-col gap-3 min-h-0">
+        <div className="flex-1 min-h-0 bg-white rounded-lg shadow overflow-hidden">
+          <ProcessDiagram />
+        </div>
+        <div className="h-56 bg-white rounded-lg shadow overflow-hidden">
+          <StickyCurve />
+        </div>
       </div>
-      {/* Right: Parameters + KPIs */}
-      <div className="space-y-4">
-        <div className="bg-white rounded-lg shadow p-3">
-          <h2 className="text-sm font-bold text-primary mb-2">Parametre</h2>
+
+      {/* Col 2: Parameter panel — scrolls internally */}
+      <div className="bg-white rounded-lg shadow flex flex-col min-h-0">
+        <div className="px-3 pt-3 pb-1 border-b border-gray-100">
+          <h2 className="text-sm font-bold text-primary">Parametre</h2>
+        </div>
+        <div className="flex-1 overflow-y-auto px-2 py-2">
           <ParameterPanel />
         </div>
-        <div className="bg-white rounded-lg shadow p-3">
-          <h2 className="text-sm font-bold text-primary mb-2">Nøgletal (KPI)</h2>
+      </div>
+
+      {/* Col 3: KPI panel — scrolls internally */}
+      <div className="bg-white rounded-lg shadow flex flex-col min-h-0">
+        <div className="px-3 pt-3 pb-1 border-b border-gray-100">
+          <h2 className="text-sm font-bold text-primary">Nøgletal (KPI)</h2>
+        </div>
+        <div className="flex-1 overflow-y-auto px-2 py-2">
           <KPIPanel />
         </div>
       </div>
