@@ -106,3 +106,13 @@ Dette er et **forenklet undervisningsværktøj**. Resultaterne må ikke bruges t
 | `ScenarioComparison.tsx` | Scenariesammenligning |
 | `CaseLibrary.tsx` | Casebibliotek med 7 cases |
 | `CalibrationPanel.tsx` | Kalibreringskonstanter |
+
+---
+
+## PizzaPlan
+
+Repoet indeholder også `pizzaplan/` – en selvstændig React Native/Expo-app, der
+planlægger pizzadej ud fra hvornår pizzaerne skal spises. Den deler ikke kode
+med SpraySimDK og har sine egne afhængigheder og tests.
+
+Se [pizzaplan/README.md](pizzaplan/README.md).
