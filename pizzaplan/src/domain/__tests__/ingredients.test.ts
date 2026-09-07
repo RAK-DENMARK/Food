@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_HYDRATION, DEFAULT_SALT } from '../../config/dough';
-import { calculateIngredients, calculateTotalDoughWeight } from '../ingredients';
+import { PREFERMENTS } from '../../config/dough';
+import {
+  calculateIngredients,
+  calculateTotalDoughWeight,
+  limitPrefermentShare,
+} from '../ingredients';
 
 const base = {
   pizzaCount: 6,
@@ -61,9 +66,80 @@ describe('calculateIngredients', () => {
     expect(Number.isInteger(ing.flourG)).toBe(false);
   });
 
+  it('lægger alt i den endelige dej, når der ikke er fordej', () => {
+    const ing = calculateIngredients(base);
+    expect(ing.preferment).toBeUndefined();
+    expect(ing.finalDough.flourG).toBeCloseTo(ing.flourG, 9);
+    expect(ing.finalDough.waterG).toBeCloseTo(ing.waterG, 9);
+    expect(ing.finalDough.saltG).toBeCloseTo(ing.saltG, 9);
+  });
+
   it('håndterer høj hydrering', () => {
     const ing = calculateIngredients({ ...base, hydration: 0.8 });
     expect(ing.waterG / ing.flourG).toBeCloseTo(0.8, 12);
     expect(ing.flourG + ing.waterG + ing.saltG + ing.yeastG).toBeCloseTo(1620, 9);
+  });
+});
+
+
+describe('fordeje', () => {
+  const poolish = {
+    kind: 'poolish' as const,
+    flourShare: PREFERMENTS.poolish.flourShare,
+    hydration: PREFERMENTS.poolish.hydration,
+    yeastPercent: 0.0017,
+    hours: 12,
+  };
+
+  it('deler mel og vand mellem fordejen og den endelige dej', () => {
+    const ing = calculateIngredients({ ...base, preferment: poolish });
+    expect(ing.preferment).toBeDefined();
+    expect(ing.preferment!.flourG + ing.finalDough.flourG).toBeCloseTo(ing.flourG, 9);
+    expect(ing.preferment!.waterG + ing.finalDough.waterG).toBeCloseTo(ing.waterG, 9);
+    expect(ing.preferment!.yeastG + ing.finalDough.yeastG).toBeCloseTo(ing.yeastG, 9);
+  });
+
+  it('rammer stadig den samlede dejvægt', () => {
+    const ing = calculateIngredients({ ...base, preferment: poolish });
+    expect(ing.flourG + ing.waterG + ing.saltG + ing.yeastG).toBeCloseTo(1620, 9);
+  });
+
+  it('giver poolishen lige dele mel og vand', () => {
+    const ing = calculateIngredients({ ...base, preferment: poolish });
+    expect(ing.preferment!.waterG).toBeCloseTo(ing.preferment!.flourG, 9);
+  });
+
+  it('holder alt saltet i den endelige dej', () => {
+    const ing = calculateIngredients({ ...base, preferment: poolish });
+    expect(ing.finalDough.saltG).toBeCloseTo(ing.saltG, 9);
+  });
+
+  it('laver en tør biga', () => {
+    const ing = calculateIngredients({
+      ...base,
+      preferment: {
+        kind: 'biga',
+        flourShare: PREFERMENTS.biga.flourShare,
+        hydration: PREFERMENTS.biga.hydration,
+        yeastPercent: 0.0012,
+        hours: 16,
+      },
+    });
+    expect(ing.preferment!.waterG / ing.preferment!.flourG).toBeCloseTo(0.45, 9);
+    expect(ing.finalDough.waterG).toBeGreaterThan(0);
+  });
+
+  it('skruer fordejens andel ned, hvis den endelige dej ellers bliver knastør', () => {
+    const share = limitPrefermentShare(0.3, 1.0, 0.5);
+    expect(share).toBeLessThan(0.3);
+
+    const ing = calculateIngredients({ ...base, hydration: 0.5, preferment: poolish });
+    const finalHydration = ing.finalDough.waterG / ing.finalDough.flourG;
+    expect(finalHydration).toBeGreaterThanOrEqual(0.39);
+  });
+
+  it('rører ikke andelen, når der er vand nok', () => {
+    expect(limitPrefermentShare(0.3, 1.0, 0.62)).toBeCloseTo(0.3, 9);
+    expect(limitPrefermentShare(0.4, 0.45, 0.62)).toBeCloseTo(0.4, 9);
   });
 });

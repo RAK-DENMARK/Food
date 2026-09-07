@@ -6,11 +6,20 @@ PizzaPlan svarer på ét spørgsmål: **"Jeg vil spise pizza på dette tidspunkt
 hvornår skal jeg starte, hvad skal jeg bruge, og hvad skal jeg gøre?"**
 
 Brugeren angiver antal pizzaer, hvornår de skal spises, og cirka hvor varmt der
-er i køkkenet. PizzaPlan vælger selv fermenteringsstrategi og gærmængde og
-leverer en færdig indkøbs- og tidsplan. Ingen bagerprocenter, ingen login,
-ingen internetforbindelse.
+er i køkkenet. PizzaPlan vælger selv hævetid og gærmængde og leverer en færdig
+indkøbs- og tidsplan. Ingen bagerprocenter, ingen login, ingen internetforbindelse.
 
-MVP'en dækker **napolitansk-inspireret hjemmedej** med instant tørgær.
+Dejen dækker **napolitansk-inspireret hjemmedej** med instant tørgær, og
+brugeren kan vælge:
+
+| Valg | Muligheder |
+|------|------------|
+| **Metode** (dejtypen) | Direkte dej · Poolish · Biga |
+| **Forløb** (hvor den hæver) | Lad PizzaPlan vælge · Stuetemperatur · Køleskab |
+
+De to ting holdes bevidst adskilt. "24 timer" og "48 timer" er ikke dejtyper,
+men fermenteringsforløb – og antallet af timer regner appen selv ud fra
+spisetidspunktet.
 
 ## Kom i gang
 
@@ -24,7 +33,7 @@ npm run android
 Domænelaget kan køres og testes helt uden Expo:
 
 ```bash
-npm test           # 90 tests af beregningsmotoren
+npm test           # 125 tests af beregningsmotoren
 npm run typecheck
 npm run example    # printer et komplet eksempel fra input til færdig plan
 ```
@@ -67,7 +76,7 @@ scripts/example.ts         Komplet eksempel uden UI
 
 1. **Start** – titel og én knap.
 2. **Pizzaerne** – antal pizzaer og hvornår de skal være klar.
-3. **Forholdene** – rumtemperatur, og avancerede indstillinger lukket som standard.
+3. **Forholdene** – rumtemperatur, dejtype, hævning, og avancerede indstillinger lukket som standard.
 4. **Din dejplan** – klassificering, ingredienser med store tal og en kronologisk tidsplan.
 
 ## Beregningen kort fortalt
@@ -86,14 +95,23 @@ Der regnes med fuld præcision. Afrunding sker først i visningen, og en meget
 lille gærmængde vises aldrig som 0 g – i stedet advarer appen om, at der skal
 en præcisionsvægt til.
 
+Ved en indirekte metode deles mel, vand og gær mellem fordejen og den endelige
+dej. Saltet kommer altid i den endelige dej.
+
 Gærmængden kommer fra fermenteringsmotoren, som oversætter planens faser til
 "ækvivalente timer ved 20 °C" og slår en gærprocent op i en dokumenteret tabel.
+Fordejen har sin egen gærberegning ud fra sin egen modningstid, og gæren i den
+endelige dej sættes ned, fordi en moden fordej selv bidrager med hævekraft.
 Antagelser, tal og begrænsninger står i [docs/FERMENTERING.md](docs/FERMENTERING.md).
+
+Dejens faser hedder på italiensk *puntata* (samlet hævning efter æltning),
+*staglio* (dejen deles i bolde) og *appretto* (bollerne hæver færdig). Navnene
+står i forklaringen på resultatskærmen, aldrig i selve trinnene.
 
 ## Eksempel
 
 6 pizzaer á 270 g, 62 % hydrering, 3 % salt, 22 °C, servering lørdag kl. 18,
-bestilt torsdag aften:
+bestilt torsdag aften. Direkte dej, appen vælger forløbet:
 
 ```
 Mel              981 g
@@ -112,7 +130,11 @@ I overmorgen 14:30  Tag dejbollerne ud
 I overmorgen 18:00  🍕 Bag pizza
 ```
 
-Kør `npm run example` for at se hele udskriften.
+Samme bestilling som klassisk **direkte dej ved stuetemperatur** giver 24 timer
+og kun 0,74 g gær. Som **poolish** deles dejen i en fordej på 294 g mel, 294 g
+vand og 0,50 g gær, der modner 10,5 time, før resten røres i.
+
+Kør `npm run example` for at se alle fire varianter i deres helhed.
 
 ## Privatliv
 
@@ -122,8 +144,8 @@ MVP'en kun så længe appen kører.
 
 ## Bevidst udeladt i MVP'en
 
-Gemte opskrifter, historik, påmindelser, flere pizzastilarter, poolish og biga,
-melprofiler, dejtemperatur, indkøbsliste og engelsk sprog. Arkitekturen er lavet
+Gemte opskrifter, historik, påmindelser, flere pizzastilarter, surdej
+(lievito madre), melprofiler, dejtemperatur, indkøbsliste og engelsk sprog. Arkitekturen er lavet
 til at kunne rumme dem – men ingen af dem må komplicere den første version.
 
 ## Teknisk stack

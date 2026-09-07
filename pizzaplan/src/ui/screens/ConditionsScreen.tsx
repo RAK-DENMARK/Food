@@ -5,12 +5,21 @@ import { Card } from '../components/Card';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { Stepper } from '../components/Stepper';
 import { Accordion } from '../components/Accordion';
+import { OptionGroup, type Option } from '../components/OptionGroup';
 import { Notice } from '../components/Notice';
 import { useDraft } from '../state/DraftContext';
-import { LIMITS, STEP, YEAST_LABELS } from '../../config/dough';
+import {
+  LIMITS,
+  METHOD_DESCRIPTIONS,
+  METHOD_LABELS,
+  ROUTE_DESCRIPTIONS,
+  ROUTE_LABELS,
+  STEP,
+  YEAST_LABELS,
+} from '../../config/dough';
 import { formatTemp } from '../../utils/format';
 import { colors, spacing, typography } from '../theme';
-import type { Issue } from '../../types';
+import type { DoughMethod, FermentationRoute, Issue } from '../../types';
 import type { ScreenProps } from '../navigation';
 
 /** Kort beskrivelse af køkkentemperaturen, så tallet betyder noget. */
@@ -22,7 +31,25 @@ function temperatureHint(tempC: number): string {
   return 'Meget varmt. Hold godt øje med dejen.';
 }
 
-/** Skærm 3 – Forholdene: temperatur og eventuelle avancerede indstillinger. */
+/**
+ * Metode og forløb er to forskellige valg.
+ *
+ * Metoden er dejtypen: direkte dej eller indirekte med fordej. Forløbet er
+ * hvor dejen hæver. "24 timer" er derfor ikke en dejtype, men et forløb.
+ */
+const METHOD_OPTIONS: ReadonlyArray<Option<DoughMethod>> = [
+  { value: 'direct', label: `${METHOD_LABELS.direct} (klassisk)`, description: METHOD_DESCRIPTIONS.direct },
+  { value: 'poolish', label: METHOD_LABELS.poolish, description: METHOD_DESCRIPTIONS.poolish },
+  { value: 'biga', label: METHOD_LABELS.biga, description: METHOD_DESCRIPTIONS.biga },
+];
+
+const ROUTE_OPTIONS: ReadonlyArray<Option<FermentationRoute>> = [
+  { value: 'auto', label: ROUTE_LABELS.auto, description: ROUTE_DESCRIPTIONS.auto },
+  { value: 'room', label: ROUTE_LABELS.room, description: ROUTE_DESCRIPTIONS.room },
+  { value: 'cold', label: ROUTE_LABELS.cold, description: ROUTE_DESCRIPTIONS.cold },
+];
+
+/** Skærm 3 – Forholdene: temperatur, dejtype og hævning. */
 export function ConditionsScreen({ navigation }: ScreenProps<'Conditions'>) {
   const { draft, update, generatePlan } = useDraft();
   const [errors, setErrors] = useState<Issue[]>([]);
@@ -62,6 +89,26 @@ export function ConditionsScreen({ navigation }: ScreenProps<'Conditions'>) {
         <Text style={styles.explainer}>
           Temperaturen hjælper PizzaPlan med at vurdere, hvor hurtigt dejen hæver.
         </Text>
+      </Card>
+
+      <Card>
+        <OptionGroup
+          label="Hvilken slags dej?"
+          options={METHOD_OPTIONS}
+          value={draft.method}
+          onChange={(method) => update({ method })}
+          help="Fordeje skal modne, før dejen laves, så de kræver længere tid."
+        />
+      </Card>
+
+      <Card>
+        <OptionGroup
+          label="Hvordan skal den hæve?"
+          options={ROUTE_OPTIONS}
+          value={draft.route}
+          onChange={(route) => update({ route })}
+          help="Hvor mange timer dejen hæver, regner PizzaPlan selv ud fra dit spisetidspunkt."
+        />
       </Card>
 
       {errors.length > 0 ? (

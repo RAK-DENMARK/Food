@@ -14,6 +14,8 @@ function input(overrides: Partial<DoughInput> = {}): DoughInput {
     salt: DEFAULT_SALT,
     yeastType: 'IDY',
     roomTempC: 22,
+    method: 'direct',
+    route: 'auto',
     servingTime: addHours(now, 30),
     ...overrides,
   };

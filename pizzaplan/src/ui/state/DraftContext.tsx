@@ -2,8 +2,10 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import {
   DEFAULT_BALL_WEIGHT_G,
   DEFAULT_HYDRATION,
+  DEFAULT_METHOD,
   DEFAULT_PIZZA_COUNT,
   DEFAULT_ROOM_TEMP_C,
+  DEFAULT_ROUTE,
   DEFAULT_SALT,
   DEFAULT_YEAST_TYPE,
 } from '../../config/dough';
@@ -44,6 +46,8 @@ function initialDraft(): DoughInput {
     salt: DEFAULT_SALT,
     yeastType: DEFAULT_YEAST_TYPE,
     roomTempC: DEFAULT_ROOM_TEMP_C,
+    method: DEFAULT_METHOD,
+    route: DEFAULT_ROUTE,
     servingTime: defaultServingTime(),
   };
 }

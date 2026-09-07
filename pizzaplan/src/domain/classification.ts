@@ -18,7 +18,7 @@ export function classifySchedule(totalHours: number): PlanClassification {
 const TEXTS: Record<PlanClassification, { headline: string; body: string }> = {
   optimal: {
     headline: 'Du har god tid 👍',
-    body: 'Dejen får en lang, kold hævning. Det giver den bedste smag og struktur.',
+    body: 'Der er god tid til en lang og kontrolleret hævning. Det er dér smagen kommer fra.',
   },
   god: {
     headline: 'Det kan sagtens lade sig gøre',
@@ -38,6 +38,15 @@ export function classificationHeadline(classification: PlanClassification): stri
   return TEXTS[classification].headline;
 }
 
-export function classificationBody(classification: PlanClassification): string {
+/**
+ * Uddybningen afhænger også af, hvor dejen hæver – ellers ville en plan ved
+ * stuetemperatur blive beskrevet som kold.
+ */
+export function classificationBody(classification: PlanClassification, usesFridge = false): string {
+  if (classification === 'optimal') {
+    return usesFridge
+      ? 'Dejen får en lang, kold hævning. Det giver den bedste smag og struktur.'
+      : 'Dejen får en lang, rolig hævning ved stuetemperatur. Sådan laves den klassiske napolitanske.';
+  }
   return TEXTS[classification].body;
 }

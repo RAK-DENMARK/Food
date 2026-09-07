@@ -7,7 +7,7 @@ import { Accordion } from '../components/Accordion';
 import { Timeline } from '../components/Timeline';
 import { IngredientRow } from '../components/IngredientRow';
 import { useDraft } from '../state/DraftContext';
-import { explainPlan } from '../../domain/explanation';
+import { describePlan, explainPlan } from '../../domain/explanation';
 import { PRECISION_SCALE_YEAST_G, YEAST_LABELS } from '../../config/dough';
 import {
   formatDayTime,
@@ -61,6 +61,7 @@ export function PlanScreen({ navigation }: ScreenProps<'Plan'>) {
         <Text style={styles.serving}>
           {`Klar ${formatDayTime(draft.servingTime, generatedAt).toLowerCase()}`}
         </Text>
+        <Text style={styles.method}>{describePlan(plan)}</Text>
       </View>
 
       <Notice
@@ -89,6 +90,13 @@ export function PlanScreen({ navigation }: ScreenProps<'Plan'>) {
               : undefined
           }
         />
+        {ingredients.preferment ? (
+          <Text style={styles.totalNote}>
+            {`Heraf går ${formatGrams(ingredients.preferment.flourG)} mel og ${formatGrams(
+              ingredients.preferment.waterG,
+            )} vand i ${ingredients.preferment.kind === 'poolish' ? 'poolishen' : 'bigaen'}. Tidsplanen fortæller hvornår.`}
+          </Text>
+        ) : null}
         <Text style={styles.totalNote}>
           {`Giver ${formatGrams(ingredients.totalDoughG)} dej i alt.`}
         </Text>
@@ -116,6 +124,7 @@ const styles = StyleSheet.create({
   header: { gap: spacing.xs },
   summary: { ...typography.title, color: colors.text },
   serving: { ...typography.body, color: colors.textMuted, fontSize: 19 },
+  method: { ...typography.small, color: colors.accentPressed, fontWeight: '600' },
   sectionTitle: { ...typography.heading, color: colors.text },
   totalNote: { ...typography.small, color: colors.textMuted },
   explanation: { ...typography.small, color: colors.text },

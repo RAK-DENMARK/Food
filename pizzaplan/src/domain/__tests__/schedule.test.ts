@@ -1,15 +1,53 @@
 import { describe, expect, it } from 'vitest';
-import { PROCESS } from '../../config/dough';
+import { PREFERMENTS, PROCESS } from '../../config/dough';
 import { selectFermentationStrategy } from '../fermentation';
+import { calculateIngredients } from '../ingredients';
 import { createDoughSchedule } from '../schedule';
 import { hoursBetween } from '../../utils/time';
+import type { DoughMethod, FermentationPlan } from '../../types';
 
-function scheduleFor(availableHours: number, servingTime: Date, roomTempC = 22) {
-  const fermentation = selectFermentationStrategy(availableHours, roomTempC);
-  if (!fermentation) throw new Error('forventede en plan');
+/** Bygger de ingredienser, tidsplanen skal bruge for at kunne skrive mængder. */
+function ingredientsFor(fermentation: FermentationPlan) {
+  const preferment = fermentation.preferment;
+  return calculateIngredients({
+    pizzaCount: 6,
+    ballWeightG: 270,
+    hydration: 0.62,
+    salt: 0.03,
+    yeastPercent: 0.001,
+    yeastType: 'IDY',
+    preferment: preferment
+      ? {
+          kind: preferment.kind,
+          flourShare: PREFERMENTS[preferment.kind].flourShare,
+          hydration: PREFERMENTS[preferment.kind].hydration,
+          yeastPercent: 0.0015,
+          hours: preferment.hours,
+        }
+      : undefined,
+  });
+}
+
+function scheduleFor(
+  availableHours: number,
+  servingTime: Date,
+  roomTempC = 22,
+  method: DoughMethod = 'direct',
+) {
+  const result = selectFermentationStrategy({ availableHours, roomTempC, method, route: 'auto' });
+  if (!result.ok) throw new Error(`forventede en plan: ${result.issue.message}`);
+  const fermentation = result.plan;
+  const ingredients = ingredientsFor(fermentation);
   return {
     fermentation,
-    steps: createDoughSchedule({ fermentation, servingTime, pizzaCount: 6, ballWeightG: 270 }),
+    ingredients,
+    steps: createDoughSchedule({
+      fermentation,
+      ingredients,
+      servingTime,
+      pizzaCount: 6,
+      ballWeightG: 270,
+    }),
   };
 }
 
@@ -63,9 +101,17 @@ describe('createDoughSchedule', () => {
 
   it('nævner antal dejbolde og vægt i instruktionen', () => {
     const serving = new Date(2026, 8, 12, 18, 0);
-    const fermentation = selectFermentationStrategy(24, 22)!;
+    const result = selectFermentationStrategy({
+      availableHours: 24,
+      roomTempC: 22,
+      method: 'direct',
+      route: 'auto',
+    });
+    if (!result.ok) throw new Error('forventede en plan');
+    const fermentation = result.plan;
     const steps = createDoughSchedule({
       fermentation,
+      ingredients: ingredientsFor(fermentation),
       servingTime: serving,
       pizzaCount: 8,
       ballWeightG: 250,
@@ -103,6 +149,37 @@ describe('createDoughSchedule', () => {
     // Forløbet tid er den samme uanset urskiftet.
     expect(hoursBetween(start.time, serving)).toBeCloseTo(fermentation.totalHours, 6);
     expect(steps[steps.length - 1].time.getHours()).toBe(18);
+  });
+
+  it('sætter fordejen først og nævner dens mængder', () => {
+    const serving = new Date(2026, 8, 12, 18, 0);
+    const { steps, ingredients } = scheduleFor(30, serving, 22, 'poolish');
+    expect(steps[0].id).toBe('preferment');
+    expect(steps[0].title).toContain('poolish');
+    expect(steps[0].detail).toContain(`${Math.round(ingredients.preferment!.flourG)} g mel`);
+  });
+
+  it('starter fordejen præcis modningstiden før æltningen', () => {
+    const serving = new Date(2026, 8, 12, 18, 0);
+    const { steps, fermentation } = scheduleFor(30, serving, 22, 'poolish');
+    const preferment = steps.find((step) => step.id === 'preferment')!;
+    const mix = steps.find((step) => step.id === 'mix')!;
+    expect(hoursBetween(preferment.time, mix.time)).toBeCloseTo(fermentation.preferment!.hours, 6);
+  });
+
+  it('beder brugeren blande fordejen i ved æltningen', () => {
+    const serving = new Date(2026, 8, 12, 18, 0);
+    const { steps } = scheduleFor(40, serving, 22, 'biga');
+    const mix = steps.find((step) => step.id === 'mix')!;
+    expect(mix.detail).toContain('bigaen');
+  });
+
+  it('skriver mængderne i æltetrinnet for en direkte dej', () => {
+    const serving = new Date(2026, 8, 12, 18, 0);
+    const { steps, ingredients } = scheduleFor(24, serving);
+    const mix = steps.find((step) => step.id === 'mix')!;
+    expect(mix.detail).toContain(`${Math.round(ingredients.finalDough.flourG)} g mel`);
+    expect(mix.detail).toContain('salt');
   });
 
   it('markerer de trin, der egner sig til en påmindelse', () => {

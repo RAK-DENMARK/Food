@@ -11,6 +11,28 @@
  */
 export type YeastType = 'IDY';
 
+/**
+ * Dejmetode.
+ *
+ * Den egentlige hovedopdeling er DIREKTE (impasto diretto: mel, vand, salt og
+ * gær bliver til den endelige dej med det samme) og INDIREKTE, hvor en fordej
+ * laves først. Poolish er en våd fordej, biga en tør.
+ *
+ * "24 timer" og "48 timer" er derimod ikke metoder – det er fermenteringsforløb.
+ * De hører til under FermentationRoute.
+ */
+export type DoughMethod = 'direct' | 'poolish' | 'biga';
+
+/** De metoder, der bruger en fordej. */
+export type PrefermentKind = Exclude<DoughMethod, 'direct'>;
+
+/**
+ * Fermenteringsforløb: hvor dejen står, ikke hvordan den er sat.
+ *
+ * 'auto' lader PizzaPlan vælge ud fra den tilgængelige tid.
+ */
+export type FermentationRoute = 'auto' | 'room' | 'cold';
+
 /** Brugerens input til en dejplan. */
 export interface DoughInput {
   /** Antal pizzaer. */
@@ -25,32 +47,74 @@ export interface DoughInput {
   yeastType: YeastType;
   /** Cirka rumtemperatur i °C. */
   roomTempC: number;
+  /** Direkte dej eller fordej. */
+  method: DoughMethod;
+  /** Stuetemperatur, køleskab eller lad appen vælge. */
+  route: FermentationRoute;
   /** Hvornår pizzaerne skal spises (lokal tid). */
   servingTime: Date;
 }
 
-/** Ingredienser beregnet med fuld præcision. Afrunding sker først i visningen. */
+/** Mængderne i en fordej (poolish eller biga). */
+export interface PrefermentAmounts {
+  kind: PrefermentKind;
+  flourG: number;
+  waterG: number;
+  yeastG: number;
+  /** Fordejens egen hydrering, fx 1,0 for poolish. */
+  hydration: number;
+  /** Andel af den samlede melmængde, der ligger i fordejen. */
+  flourShare: number;
+  /** Modningstid i timer. */
+  hours: number;
+}
+
+/** Det, der tilsættes når den endelige dej æltes. */
+export interface FinalDoughAmounts {
+  flourG: number;
+  waterG: number;
+  saltG: number;
+  yeastG: number;
+}
+
+/**
+ * Ingredienser beregnet med fuld præcision. Afrunding sker først i visningen.
+ * Tallene på øverste niveau er de SAMLEDE mængder – dem man køber ind og vejer af.
+ */
 export interface Ingredients {
   totalDoughG: number;
   flourG: number;
   waterG: number;
   saltG: number;
   yeastG: number;
-  /** Gær som bagerprocent af mel, fx 0,0012. */
+  /** Samlet gær som bagerprocent af den samlede melvægt. */
   yeastPercent: number;
   yeastType: YeastType;
+  /** Findes kun ved indirekte metoder. */
+  preferment?: PrefermentAmounts;
+  /** Hvad der skal i skålen ved æltning af den endelige dej. */
+  finalDough: FinalDoughAmounts;
 }
 
-/** Fermenteringsstrategi valgt af motoren. */
+/**
+ * Fermenteringsstrategi valgt af motoren: metode og forløb sat sammen.
+ * Metoden siger hvordan dejen er sat, forløbet hvor den hæver.
+ */
 export type FermentationStrategyId =
-  | 'very-short-room'
-  | 'same-day-room'
-  | 'room-temp'
-  | 'cold-ferment';
+  | 'direct-room'
+  | 'direct-cold'
+  | 'poolish-room'
+  | 'poolish-cold'
+  | 'biga-room'
+  | 'biga-cold';
 
 /** En fase i fermenteringen med en antaget temperatur. */
 export type FermentationPhaseKind =
+  /** Fordejens modning (poolish eller biga). */
+  | 'preferment'
+  /** Puntata: dejen hæver samlet efter æltning. */
   | 'bulk-room'
+  /** Appretto: dejbollerne hæver færdig ved stuetemperatur. */
   | 'balls-room'
   | 'fridge-cooldown'
   | 'fridge'
@@ -68,13 +132,29 @@ export interface FermentationPhase {
 /** Resultatet af fermenteringsmotoren – uden klokkeslæt. */
 export interface FermentationPlan {
   strategy: FermentationStrategyId;
+  method: DoughMethod;
+  /** Det forløb der faktisk blev valgt (aldrig 'auto'). */
+  route: Exclude<FermentationRoute, 'auto'>;
   usesFridge: boolean;
   /** Samlet varighed fra dejen røres til pizzaerne bages. */
   totalHours: number;
   /** Æltetid, altså tiden før fermenteringen for alvor tæller. */
   mixHours: number;
   phases: FermentationPhase[];
-  /** Summen af fasernes timer vægtet med hastigheden, målt ved 20 °C. */
+  /**
+   * Fordejens modning. Ligger også som første fase i phases, men er her
+   * for sig, fordi den har sin egen gærberegning.
+   */
+  preferment?: {
+    kind: PrefermentKind;
+    hours: number;
+    tempC: number;
+    equivalentHoursAt20: number;
+  };
+  /**
+   * Ækvivalente timer ved 20 °C for hovedfermenteringen, altså efter den
+   * endelige dej er æltet. Fordejen tæller ikke med her.
+   */
   equivalentHoursAt20: number;
   /** Rumtemperatur brugt i beregningen (kan være klampet). */
   modelTempC: number;
@@ -82,6 +162,7 @@ export interface FermentationPlan {
 
 /** Et trin i den kronologiske tidsplan. */
 export type ScheduleStepId =
+  | 'preferment'
   | 'mix'
   | 'mixed'
   | 'ball'
@@ -108,6 +189,8 @@ export type IssueCode =
   | 'too-little-time'
   | 'short-notice'
   | 'temp-outside-model'
+  | 'method-needs-more-time'
+  | 'route-needs-more-time'
   | 'ball-weight-out-of-range'
   | 'hydration-out-of-range'
   | 'salt-out-of-range'

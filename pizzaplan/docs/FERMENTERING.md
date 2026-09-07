@@ -10,6 +10,48 @@ Selve logikken ligger i `src/domain/fermentation.ts` og er testet i
 
 ---
 
+## 0. Metode og forløb er to forskellige ting
+
+Det er den skelnen, hele modellen er bygget op om, og den blandes ofte sammen.
+
+**Metoden** er dejtypen:
+
+| Metode | Italiensk | Hvad det er |
+|--------|-----------|-------------|
+| Direkte | *impasto diretto* | Mel, vand, salt og gær bliver til den endelige dej med det samme. Metoden bag den klassiske pizza napoletana. |
+| Poolish | *impasto indiretto con poolish* | En våd fordej på 100 % hydrering modner først. |
+| Biga | *impasto indiretto con biga* | En tør fordej modner først. |
+
+**Forløbet** er, hvor dejen hæver: fremme ved stuetemperatur eller det meste af
+tiden på køl.
+
+"24 timer", "48 timer" og "72 timer" er **ikke dejtyper**. De beskriver
+fermenteringsforløbet. En 24-timers direkte dej ved stuetemperatur og en
+24-timers direkte dej på køl er samme metode med to forskellige forløb.
+
+De to valg er derfor adskilt i både datamodel (`DoughMethod` og
+`FermentationRoute`) og brugerflade. Timerne er ikke et valg – dem regner appen
+ud fra spisetidspunktet.
+
+Den klassiske napolitanske dej, som AVPN beskriver, er en **direkte dej med
+hele fermenteringen ved kontrolleret stuetemperatur**, typisk 12-24 timer ved
+omkring 18-22 °C med meget lidt gær. Det er præcis kombinationen
+metode = direkte og forløb = stuetemperatur, og den er derfor loftet for et
+stuetemperaturforløb i modellen (24 timer).
+
+### Dejens tre faser
+
+Uanset metode har den endelige dej de samme faser. De italienske navne bruges
+kun i forklaringen på resultatskærmen – aldrig i selve trinnene:
+
+| Fase | Hvad sker der |
+|------|---------------|
+| **Puntata** | Dejen hæver samlet efter æltningen. |
+| **Staglio** | Dejen deles og formes til dejbolde. |
+| **Appretto** | Dejbollerne hæver færdig frem til bagning. |
+
+---
+
 ## 1. Grundidé: ækvivalente timer ved 20 °C
 
 En dej hæver hurtigere, når den er varm, og langsommere, når den er kold.
@@ -89,22 +131,34 @@ laboratoriepræcist. Derfor:
 ## 3. Valg af strategi
 
 Appen kender den tilgængelige tid fra nu til servering (minus et kvarter til at
-komme i gang) og vælger derefter selv. Brugeren skal ikke tage stilling til
-18, 24 eller 48 timer.
+komme i gang). Brugeren vælger metode og eventuelt forløb; alt andet regner
+appen selv.
 
-| Betingelse | Strategi | Forløb |
-|-----------|----------|--------|
-| Under 2,5 time | ingen | Appen siger ærligt nej og beder om et senere tidspunkt. |
-| 2,5–4 timer | `very-short-room` | Alt ved stuetemperatur, mere gær. |
-| 4–10 timer | `same-day-room` | Alt ved stuetemperatur samme dag. |
-| 10–20 timer | `room-temp` | Alt ved stuetemperatur. Et køleophold ville blive for kort til at gøre gavn. |
-| Over 20 timer | `cold-ferment` | 2 timers bulk ved stuetemperatur, dejbolde på køl, udtagning og temperering før bagning. |
+### Mindstetid pr. metode
+
+| Metode | Mindst | Hvorfor |
+|--------|-------:|---------|
+| Direkte | 2,5 time | Under det er en pizzadej ikke realistisk. |
+| Poolish | 16 timer | Fordejen skal nå at modne, før dejen kan laves. |
+| Biga | 22 timer | En tør fordej modner langsommere end en våd. |
+
+Er der ikke tid nok, siger appen det – og foreslår den direkte dej i stedet for
+bare at afvise.
+
+### Valg af forløb
+
+| Brugerens valg | Resultat |
+|----------------|----------|
+| Lad PizzaPlan vælge | Køl, hvis der er mindst 20 timer tilbage til hovedfermenteringen. Ellers stuetemperatur. |
+| Stuetemperatur | Hele hævningen står fremme, højst 24 timer i alt. |
+| Køleskab | Kræver plads til mindst 8 timers køl oven i bulk og temperering. Ellers siger appen fra og henviser til stuetemperatur. |
 
 Yderligere regler:
 
-- **Planen bliver aldrig længere end 48 timer** (`preferredMaxTotalHours`),
-  selv om brugeren har en uges varsel. Så starter man fredag aften i stedet for
-  at få besked på at gå i gang med det samme onsdag.
+- **Et koldt forløb planlægges aldrig længere end 48 timer**
+  (`preferredMaxTotalHours`), et stuetemperaturforløb aldrig længere end 24
+  (`ROOM_MAX_TOTAL_HOURS`). Har brugeren en uges varsel, får hen en senere
+  starttid – ikke besked på at gå i gang med det samme.
 - **Et køleophold skal være mindst 8 timer** (`minFridgeHours`), ellers
   vælges stuetemperatur i stedet. Et kort ophold i køleskabet giver mest af alt
   en kold dej og ikke den langsomme modning, man er ude efter.
@@ -114,6 +168,37 @@ Yderligere regler:
 
 Æltning regnes som 30 minutter, og der går et kvarter fra dejbollerne er formet,
 til de står i køleskabet. Begge dele er praktiske skøn for et hjemmekøkken.
+
+---
+
+## 3b. Fordeje
+
+Vælger brugeren poolish eller biga, lægges fordejens modning FORAN hele
+forløbet. Fordejen står altid ved stuetemperatur.
+
+| | Poolish | Biga |
+|---|---|---|
+| Andel af den samlede melmængde | 30 % | 40 % |
+| Fordejens hydrering | 100 % | 45 % |
+| Modning ved 20 °C | 12 timer | 14 timer |
+| Grænser | 6–18 timer | 10–24 timer |
+
+Modningstiden skaleres med rumtemperaturen på samme måde som resten af
+modellen: `baseHours / hastighed(rumtemperatur)`. Ved 18 °C bliver en biga
+derfor cirka 16 timer, hvilket svarer til den traditionelle anvisning.
+
+**Salt kommer aldrig i fordejen** – det ville bremse modningen. Alt saltet
+tilsættes ved æltningen af den endelige dej.
+
+**Vandbudget.** Fordejen tager sin del af den samlede vandmængde. En poolish på
+100 % hydrering kan tage så meget, at resten af dejen bliver knastør. Derfor
+skrues fordejens andel automatisk ned, hvis den endelige dej ellers ville komme
+under 40 % hydrering (`MIN_FINAL_DOUGH_HYDRATION`). Ved standardopskriften på
+62 % binder den regel ikke.
+
+**Fordejen er klar, når den ser klar ud.** Tiden er et pejlemærke. Derfor står
+der et modenhedstegn i selve trinnet: en poolish er klar, når overfladen bobler
+og midten lige er begyndt at synke.
 
 ---
 
@@ -154,6 +239,23 @@ måledata, og der er reel spredning mellem gode opskrifter. Derfor:
 
 Gærprocenten begrænses til mellem 0,02 % og 1 % (`YEAST_PERCENT_LIMITS`).
 
+### Gær ved en fordej
+
+Gæren deles i to, og de to dele beregnes hver for sig:
+
+1. **Fordejens gær** slås op i den samme tabel ud fra fordejens EGEN
+   modningstid, og regnes som bagerprocent af fordejens mel. En poolish på
+   10-12 timer ved stuetemperatur lander derved omkring 0,17 % af poolishens
+   mel, hvilket svarer til gængs praksis.
+2. **Den endelige dejs gær** slås op ud fra hovedfermenteringen (alt efter
+   æltningen) og ganges derefter med `PREFERMENT_LEAVENING_CREDIT` = 0,5.
+
+Faktoren på 0,5 er begrundelsen værd: en moden fordej indeholder allerede en
+stor, aktiv gærbestand, og uden nedsættelsen ville dejen hæve for hurtigt.
+Halvdelen er et bevidst rundt tal, ikke et måleresultat. Det giver en samlet
+gærmængde, der er lidt højere end den tilsvarende direkte dej, hvilket passer
+med, at en del af gærens arbejde bruges på at modne fordejen.
+
 ### Gærtyper
 
 MVP'en understøtter kun **instant tørgær (IDY)**. Instant tørgær og almindelig
@@ -172,8 +274,9 @@ Bevidst udeladt i MVP'en, men arkitekturen er lavet til at kunne rumme det:
 - hydreringens effekt på hævehastigheden
 - køleskabets faktiske temperatur
 - fordeling mellem bulk og dejbolde ud over de faste regler ovenfor
-- fordej (poolish, biga)
-- surdej
+- fordejens egen temperatur (den regnes som rumtemperatur)
+- lievito madre og anden surdej
+- lang biga ved lav temperatur (48 timer ved 4-6 °C)
 
 ---
 
@@ -187,3 +290,7 @@ Bevidst udeladt i MVP'en, men arkitekturen er lavet til at kunne rumme det:
 Hverken UI eller tidsplan behøver at blive rørt. Fermenteringsmotoren kan
 udskiftes helt, så længe `selectFermentationStrategy()` og
 `calculateYeastPercent()` beholder deres signaturer.
+
+En ny metode kræver tre ting: en post i `DoughMethod`, en post i `PREFERMENTS`
+(hvis den bruger fordej) og en tekst i `METHOD_TEXTS` i `explanation.ts`.
+Resten af kæden – ingredienser, tidsplan og skærme – tager selv højde for den.

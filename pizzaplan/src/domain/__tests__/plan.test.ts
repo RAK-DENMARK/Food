@@ -15,6 +15,8 @@ function input(overrides: Partial<DoughInput> = {}): DoughInput {
     salt: DEFAULT_SALT,
     yeastType: 'IDY',
     roomTempC: 22,
+    method: 'direct',
+    route: 'auto',
     servingTime: new Date(2026, 8, 12, 18, 0),
     ...overrides,
   };
@@ -43,7 +45,7 @@ describe('createDoughPlan – hovedeksemplet', () => {
   });
 
   it('vælger koldhævning og klassificerer planen som optimal', () => {
-    expect(plan.fermentation.strategy).toBe('cold-ferment');
+    expect(plan.fermentation.strategy).toBe('direct-cold');
     expect(plan.fermentation.usesFridge).toBe(true);
     expect(plan.classification).toBe('optimal');
     expect(plan.classificationHeadline).toContain('god tid');
@@ -134,6 +136,77 @@ describe('createDoughPlan – varianter', () => {
     if (!result.ok) throw new Error('forventede en plan');
     expect(result.plan.fermentation.totalHours).toBe(48);
     expect(hoursBetween(now, result.plan.schedule[0].time)).toBeGreaterThan(100);
+  });
+
+  it('beskriver ikke en stuetemperaturplan som kold', () => {
+    const result = createDoughPlan(input({ route: 'room', servingTime: addHours(now, 30) }), now);
+    if (!result.ok) throw new Error('forventede en plan');
+    expect(result.plan.classification).toBe('optimal');
+    expect(result.plan.classificationBody).not.toContain('kold');
+    expect(result.plan.classificationBody).toContain('stuetemperatur');
+  });
+
+  it('beskriver en koldhævet plan som kold', () => {
+    const result = createDoughPlan(input({ route: 'cold', servingTime: addHours(now, 30) }), now);
+    if (!result.ok) throw new Error('forventede en plan');
+    expect(result.plan.classificationBody).toContain('kold');
+  });
+
+  it('laver en klassisk direkte dej ved stuetemperatur, når man beder om det', () => {
+    const result = createDoughPlan(
+      input({ route: 'room', servingTime: addHours(now, 30) }),
+      now,
+    );
+    if (!result.ok) throw new Error('forventede en plan');
+    expect(result.plan.fermentation.method).toBe('direct');
+    expect(result.plan.fermentation.route).toBe('room');
+    expect(result.plan.fermentation.totalHours).toBe(24);
+    expect(result.plan.schedule.some((step) => step.id === 'fridge-in')).toBe(false);
+  });
+
+  it('laver en poolish med sin egen gær og sit eget trin', () => {
+    const result = createDoughPlan(input({ method: 'poolish' }), now);
+    if (!result.ok) throw new Error('forventede en plan');
+    const { plan } = result;
+    expect(plan.ingredients.preferment?.kind).toBe('poolish');
+    expect(plan.ingredients.preferment!.yeastG).toBeGreaterThan(0);
+    expect(plan.schedule[0].id).toBe('preferment');
+    expect(plan.fermentation.strategy).toContain('poolish');
+  });
+
+  it('laver en biga som en tør fordej', () => {
+    const result = createDoughPlan(input({ method: 'biga' }), now);
+    if (!result.ok) throw new Error('forventede en plan');
+    const preferment = result.plan.ingredients.preferment!;
+    expect(preferment.kind).toBe('biga');
+    expect(preferment.waterG / preferment.flourG).toBeCloseTo(0.45, 6);
+  });
+
+  it('bruger mindre gær i den endelige dej, når der er en fordej', () => {
+    const direct = createDoughPlan(input({ method: 'direct', route: 'room' }), now);
+    const poolish = createDoughPlan(input({ method: 'poolish', route: 'room' }), now);
+    if (!direct.ok || !poolish.ok) throw new Error('forventede planer');
+    expect(poolish.plan.ingredients.finalDough.yeastG).toBeLessThan(
+      direct.plan.ingredients.finalDough.yeastG,
+    );
+  });
+
+  it('afviser en poolish, når der er for kort tid, og siger hvad man kan gøre', () => {
+    const result = createDoughPlan(
+      input({ method: 'poolish', servingTime: addHours(now, 8) }),
+      now,
+    );
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors[0].code).toBe('method-needs-more-time');
+    expect(result.errors[0].message).toContain('direkte');
+  });
+
+  it('afviser køl, når der ikke er tid nok', () => {
+    const result = createDoughPlan(input({ route: 'cold', servingTime: addHours(now, 9) }), now);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors[0].code).toBe('route-needs-more-time');
   });
 
   it('skalerer ingredienserne med antal pizzaer', () => {
