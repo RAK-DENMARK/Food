@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_HYDRATION, DEFAULT_SALT, PRECISION_SCALE_YEAST_G } from '../../config/dough';
 import type { DoughInput } from '../../types';
-import { createDoughPlan } from '../plan';
+import { createDoughPlan, tinyYeastAdvice } from '../plan';
 import { addHours, hoursBetween } from '../../utils/time';
 import { formatYeast } from '../../utils/format';
 
@@ -70,6 +70,110 @@ describe('createDoughPlan – hovedeksemplet', () => {
     const start = plan.schedule[0];
     expect(start.time.getTime()).toBeGreaterThanOrEqual(now.getTime());
     expect(start.time.getTime()).toBeLessThan(plan.input.servingTime.getTime());
+  });
+});
+
+/**
+ * Gærmængden er det tal, en dej står og falder med. Derfor er den låst fast
+ * med tests mod kendte referencedeje frem for at være en fri konsekvens af
+ * modellen.
+ */
+describe('createDoughPlan – gærmængder', () => {
+  /** Gram instant tørgær pr. kg mel. */
+  function gramsPerKilo(overrides: Partial<DoughInput>): number {
+    const result = createDoughPlan(input(overrides), now);
+    if (!result.ok) throw new Error(`forventede en plan: ${result.errors[0].message}`);
+    const { ingredients } = result.plan;
+    return ingredients.yeastG / (ingredients.flourG / 1000);
+  }
+
+  it('holder en direkte dej på et døgn eller mere under 0,4 g pr. kg mel', () => {
+    for (const hours of [24, 26, 30, 36, 48, 72, 96]) {
+      for (const temp of [12, 16, 18, 20, 22, 26, 30]) {
+        for (const route of ['auto', 'room', 'cold'] as const) {
+          const servingTime = addHours(now, hours);
+          const result = createDoughPlan(
+            input({ method: 'direct', route, roomTempC: temp, servingTime }),
+            now,
+          );
+          if (!result.ok) continue;
+          const { plan } = result;
+          if (plan.fermentation.totalHours < 24) continue;
+          const perKilo = plan.ingredients.yeastG / (plan.ingredients.flourG / 1000);
+          expect(
+            perKilo,
+            `${hours} t ved ${temp} °C (${route}) gav ${perKilo.toFixed(2)} g/kg`,
+          ).toBeLessThanOrEqual(0.4 + 1e-9);
+        }
+      }
+    }
+  });
+
+  it('rammer den klassiske 24-timers dej ved stuetemperatur', () => {
+    const perKilo = gramsPerKilo({ route: 'room', servingTime: addHours(now, 30) });
+    expect(perKilo).toBeGreaterThan(0.2);
+    expect(perKilo).toBeLessThan(0.4);
+  });
+
+  it('bruger cirka 1 g pr. kg mel til en dej på et halvt døgn', () => {
+    const perKilo = gramsPerKilo({ servingTime: addHours(now, 12) });
+    expect(perKilo).toBeGreaterThan(0.6);
+    expect(perKilo).toBeLessThan(1.3);
+  });
+
+  it('bruger nogle få gram pr. kg mel til en hurtig dej samme dag', () => {
+    const perKilo = gramsPerKilo({ servingTime: addHours(now, 5) });
+    expect(perKilo).toBeGreaterThan(2);
+    expect(perKilo).toBeLessThan(5);
+  });
+
+  it('bruger mindre gær, jo længere dejen hæver', () => {
+    const short = gramsPerKilo({ servingTime: addHours(now, 6) });
+    const medium = gramsPerKilo({ servingTime: addHours(now, 12) });
+    const long = gramsPerKilo({ route: 'room', servingTime: addHours(now, 30) });
+    expect(short).toBeGreaterThan(medium);
+    expect(medium).toBeGreaterThan(long);
+  });
+
+  it('foreslår fortynding, når gærmængden ikke kan vejes', () => {
+    const result = createDoughPlan(input({ route: 'room', servingTime: addHours(now, 30) }), now);
+    if (!result.ok) throw new Error('forventede en plan');
+    const warning = result.plan.warnings.find((w) => w.code === 'tiny-yeast-amount');
+    expect(warning).toBeDefined();
+    expect(warning!.message).toContain('1 g gær ud i 100 ml');
+  });
+
+  it('regner fortyndingen om til hele milliliter', () => {
+    expect(tinyYeastAdvice(0.27)).toContain('27 ml');
+    expect(tinyYeastAdvice(0.4)).toContain('40 ml');
+  });
+
+  it('giver en poolish en gærmængde, der svarer til praksis', () => {
+    const result = createDoughPlan(input({ method: 'poolish', route: 'room' }), now);
+    if (!result.ok) throw new Error('forventede en plan');
+    const preferment = result.plan.ingredients.preferment!;
+    const percentOfPrefermentFlour = preferment.yeastG / preferment.flourG;
+    // Praksis for en poolish: 0,1-0,3 % af fordejens eget mel.
+    expect(percentOfPrefermentFlour).toBeGreaterThan(0.0008);
+    expect(percentOfPrefermentFlour).toBeLessThan(0.003);
+  });
+
+  it('giver en biga mere gær end en poolish, fordi den er tør', () => {
+    const poolish = createDoughPlan(input({ method: 'poolish', route: 'room' }), now);
+    const biga = createDoughPlan(input({ method: 'biga', route: 'room' }), now);
+    if (!poolish.ok || !biga.ok) throw new Error('forventede planer');
+    const poolishPercent =
+      poolish.plan.ingredients.preferment!.yeastG / poolish.plan.ingredients.preferment!.flourG;
+    const bigaPercent =
+      biga.plan.ingredients.preferment!.yeastG / biga.plan.ingredients.preferment!.flourG;
+    expect(bigaPercent).toBeGreaterThan(poolishPercent);
+  });
+
+  it('lægger hovedparten af gæren i fordejen ved indirekte metoder', () => {
+    const result = createDoughPlan(input({ method: 'biga', route: 'room' }), now);
+    if (!result.ok) throw new Error('forventede en plan');
+    const { preferment, finalDough } = result.plan.ingredients;
+    expect(preferment!.yeastG).toBeGreaterThan(finalDough.yeastG);
   });
 });
 

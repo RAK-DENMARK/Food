@@ -33,7 +33,7 @@ npm run android
 Domænelaget kan køres og testes helt uden Expo:
 
 ```bash
-npm test           # 125 tests af beregningsmotoren
+npm test           # 142 tests af beregningsmotoren
 npm run typecheck
 npm run example    # printer et komplet eksempel fra input til færdig plan
 ```
@@ -100,6 +100,9 @@ dej. Saltet kommer altid i den endelige dej.
 
 Gærmængden kommer fra fermenteringsmotoren, som oversætter planens faser til
 "ækvivalente timer ved 20 °C" og slår en gærprocent op i en dokumenteret tabel.
+Oven på modellen ligger en hård regel: **en dej, der hæver et døgn eller mere,
+får aldrig mere end 0,4 g instant tørgær pr. kg mel.** Er mængden for lille til
+en køkkenvægt, foreslår appen at fortynde gæren i vandet.
 Fordejen har sin egen gærberegning ud fra sin egen modningstid, og gæren i den
 endelige dej sættes ned, fordi en moden fordej selv bidrager med hævekraft.
 Antagelser, tal og begrænsninger står i [docs/FERMENTERING.md](docs/FERMENTERING.md).
@@ -117,7 +120,7 @@ bestilt torsdag aften. Direkte dej, appen vælger forløbet:
 Mel              981 g
 Vand             608 g
 Salt             29 g
-Instant tørgær   1,73 g   (0,18 %)
+Instant tørgær   0,39 g   (0,40 g pr. kg mel)
 
 Strategi         koldhævning: 2 t bulk, 39,5 t på køl, 3,5 t temperering
                  svarer til 11,5 timer ved 20 °C
@@ -131,8 +134,8 @@ I overmorgen 18:00  🍕 Bag pizza
 ```
 
 Samme bestilling som klassisk **direkte dej ved stuetemperatur** giver 24 timer
-og kun 0,74 g gær. Som **poolish** deles dejen i en fordej på 294 g mel, 294 g
-vand og 0,50 g gær, der modner 10,5 time, før resten røres i.
+og 0,27 g gær. Som **poolish** deles dejen i en fordej på 294 g mel, 294 g vand
+og 0,29 g gær, der modner 10,5 time, før resten røres i.
 
 Kør `npm run example` for at se alle fire varianter i deres helhed.
 

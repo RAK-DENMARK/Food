@@ -83,10 +83,20 @@ export const FERMENTATION = {
   fridgeTempC: 5,
   /** Timer hvor dejen stadig er ved at køle ned i køleskabet. */
   fridgeCooldownHours: 2,
-  /** Relativ fermenteringshastighed (20 °C = 1,0) mens dejen køler ned. */
-  fridgeCooldownRate: 0.35,
-  /** Relativ fermenteringshastighed ved gennemkølet dej. */
-  fridgeRate: 0.12,
+  /**
+   * Relativ fermenteringshastighed (20 °C = 1,0) mens dejen køler ned.
+   * Dejen er stadig lun det første stykke tid i køleskabet.
+   */
+  fridgeCooldownRate: 0.55,
+  /**
+   * Relativ fermenteringshastighed ved gennemkølet dej ved 5 °C.
+   *
+   * Svarer til fordoblingsreglen ført ned til 5 °C: cirka tre gange
+   * langsommere end ved 20 °C. Den ofte gentagne påstand om, at koldhævning
+   * er otte gange langsommere, passer ikke med, hvad der faktisk sker: en
+   * dej med 0,2 % gær er overhævet efter tre døgn på køl.
+   */
+  fridgeRate: 0.35,
   /** Udtagning fra køl: timer ved 20 °C. Skaleres med rumtemperatur. */
   temperBaseHours: 4,
   temperMinHours: 2,
@@ -105,17 +115,42 @@ export const FERMENTATION = {
  */
 export const PREFERMENTS: Record<
   PrefermentKind,
-  { flourShare: number; hydration: number; baseHours: number; minHours: number; maxHours: number }
+  {
+    flourShare: number;
+    hydration: number;
+    baseHours: number;
+    minHours: number;
+    maxHours: number;
+    yeastFactor: number;
+  }
 > = {
-  poolish: { flourShare: 0.3, hydration: 1.0, baseHours: 12, minHours: 6, maxHours: 18 },
-  biga: { flourShare: 0.4, hydration: 0.45, baseHours: 14, minHours: 10, maxHours: 24 },
+  poolish: {
+    flourShare: 0.3,
+    hydration: 1.0,
+    baseHours: 12,
+    minHours: 6,
+    maxHours: 18,
+    yeastFactor: 1,
+  },
+  biga: {
+    flourShare: 0.4,
+    hydration: 0.45,
+    baseHours: 14,
+    minHours: 10,
+    maxHours: 24,
+    // En tør fordej hæver mærkbart langsommere end en våd ved samme
+    // temperatur, fordi der er mindre vand til rådighed for gæren. Uden
+    // denne korrektion ville bigaen ikke være moden, når planen siger.
+    yeastFactor: 2,
+  },
 };
 
 /**
- * En moden fordej indeholder allerede en stor, aktiv gærbestand. Derfor
- * nedsættes gæren i den endelige dej med denne faktor.
+ * En moden fordej på 30-40 % af melet indeholder allerede en stor, aktiv
+ * gærbestand og står for hovedparten af hævekraften. Derfor nedsættes gæren
+ * i den endelige dej til denne andel af det, en direkte dej ville kræve.
  */
-export const PREFERMENT_LEAVENING_CREDIT = 0.5;
+export const PREFERMENT_LEAVENING_CREDIT = 0.3;
 
 /**
  * Den endelige dej må ikke blive knastør, når fordejen har taget en stor del
@@ -179,23 +214,44 @@ export const CLASSIFICATION_HOURS = {
 export const PRECISION_SCALE_YEAST_G = 0.5;
 
 /** Sikkerhedsgrænser for selve gærmængden (bagerprocent). */
-export const YEAST_PERCENT_LIMITS = { min: 0.0002, max: 0.01 } as const;
+export const YEAST_PERCENT_LIMITS = { min: 0.00005, max: 0.01 } as const;
+
+/**
+ * Loft over gærmængden i lange planer.
+ *
+ * En direkte dej, der hæver i et døgn eller mere, må aldrig få mere end
+ * 0,4 g instant tørgær pr. kg mel. Det er en fast fagligregel fra praksis og
+ * ligger som et selvstændigt loft oven på modellen, så en fejlkalibrering et
+ * andet sted i kæden ikke kan give en overgæret dej.
+ *
+ * Ved indirekte metoder gælder loftet gæren i den ENDELIGE dej. Fordejen har
+ * sin egen, kortere modning og sin egen gærberegning.
+ */
+export const LONG_PLAN_HOURS = 24;
+export const MAX_YEAST_PERCENT_LONG_PLAN = 0.0004;
 
 /**
  * Ankerpunkter for gærmængde: ækvivalente timer ved 20 °C -> bagerprocent IDY.
  * Der interpoleres logaritmisk mellem punkterne. Se docs/FERMENTERING.md.
+ *
+ * Kurven er STEJLERE end omvendt proportional: dobbelt så lang tid kræver
+ * mindre end den halve gærmængde. Gæren formerer sig undervejs, så en lang
+ * hævning skal startes med langt mindre, end en simpel halvering antyder.
+ *
+ * Ankeret for et døgn er den klassiske napolitanske dej: cirka 0,3 g instant
+ * tørgær pr. kg mel ved 20 °C, svarende til omkring 1 g frisk gær.
  */
 export const YEAST_ANCHORS_IDY: ReadonlyArray<{ hours: number; percent: number }> = [
   { hours: 2, percent: 0.008 },
-  { hours: 4, percent: 0.0045 },
-  { hours: 6, percent: 0.0032 },
-  { hours: 8, percent: 0.0025 },
-  { hours: 12, percent: 0.0017 },
-  { hours: 18, percent: 0.0011 },
-  { hours: 24, percent: 0.00085 },
-  { hours: 36, percent: 0.00055 },
-  { hours: 48, percent: 0.0004 },
-  { hours: 72, percent: 0.00028 },
+  { hours: 4, percent: 0.004 },
+  { hours: 6, percent: 0.0025 },
+  { hours: 8, percent: 0.0018 },
+  { hours: 12, percent: 0.001 },
+  { hours: 18, percent: 0.0005 },
+  { hours: 24, percent: 0.00032 },
+  { hours: 36, percent: 0.0002 },
+  { hours: 48, percent: 0.00014 },
+  { hours: 72, percent: 0.00009 },
 ];
 
 /**

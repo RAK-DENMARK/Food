@@ -99,8 +99,16 @@ Køl behandles som sine egne, separat dokumenterede faktorer:
 
 | Fase | Timer | Hastighed | Begrundelse |
 |------|-------|-----------|-------------|
-| Nedkøling | de første 2 | 0,35 | En bøtte dejbolde er ikke kold med det samme. Dejen fortsætter med at hæve mærkbart, mens den køler ned. |
-| Gennemkølet | resten | 0,12 | Ved 4–6 °C hæver dejen groft sagt otte gange langsommere end ved 20 °C. |
+| Nedkøling | de første 2 | 0,55 | En bøtte dejbolde er ikke kold med det samme. Dejen fortsætter med at hæve mærkbart, mens den køler ned. |
+| Gennemkølet | resten | 0,35 | Ved 4–6 °C hæver dejen cirka tre gange langsommere end ved 20 °C. |
+
+Tallet 0,35 fortjener en begrundelse, for det siges ofte, at koldhævning er
+otte gange langsommere. Det passer ikke med, hvad der faktisk sker i et
+køleskab: en dej med 0,2 % gær er overhævet efter tre døgn på køl, og det
+kunne den ikke være, hvis hastigheden var en ottendedel. 0,35 er samtidig
+præcis, hvad fordoblingsreglen giver, når den føres fra 20 °C ned til 5 °C.
+Modellen bruger altså den samme kurve begge steder, i stedet for at bryde den
+for køleskabets skyld.
 
 **Antagelse.** Køleskabet regnes som 5 °C (`FERMENTATION.fridgeTempC`).
 Køleskabets faktiske temperatur er ikke et brugerinput i MVP'en, men modellen
@@ -182,6 +190,13 @@ forløbet. Fordejen står altid ved stuetemperatur.
 | Fordejens hydrering | 100 % | 45 % |
 | Modning ved 20 °C | 12 timer | 14 timer |
 | Grænser | 6–18 timer | 10–24 timer |
+| Gærkorrektion | 1,0 | 2,0 |
+
+**Gærkorrektionen** skyldes, at en tør fordej hæver mærkbart langsommere end en
+våd ved samme temperatur, fordi der er mindre vand til rådighed for gæren.
+Uden korrektionen ville bigaen ikke være moden, når planen siger, den er. Med
+den lander en biga på cirka 0,15 % af sit eget mel ved 16 timer og 18 °C,
+hvilket svarer til, hvad der bruges i praksis.
 
 Modningstiden skaleres med rumtemperaturen på samme måde som resten af
 modellen: `baseHours / hastighed(rumtemperatur)`. Ved 18 °C bliver en biga
@@ -208,34 +223,70 @@ Gærmængden slås op i en tabel over ankerpunkter og interpoleres logaritmisk
 mellem dem (fordi sammenhængen i praksis er tæt på omvendt proportional:
 dobbelt så lang tid ≈ halvt så meget gær).
 
-Tallene er **bagerprocent instant tørgær (IDY)** af melvægten:
+Tallene er **bagerprocent instant tørgær (IDY)** af melvægten. Sidste kolonne
+er den samme mængde omregnet til gram pr. kg mel, som er sådan man i praksis
+taler om det:
 
-| Ækvivalente timer ved 20 °C | IDY |
-|---:|---:|
-| 2 | 0,80 % |
-| 4 | 0,45 % |
-| 6 | 0,32 % |
-| 8 | 0,25 % |
-| 12 | 0,17 % |
-| 18 | 0,11 % |
-| 24 | 0,085 % |
-| 36 | 0,055 % |
-| 48 | 0,040 % |
-| 72 | 0,028 % |
+| Ækvivalente timer ved 20 °C | IDY | g pr. kg mel |
+|---:|---:|---:|
+| 2 | 0,80 % | 8,0 |
+| 4 | 0,40 % | 4,0 |
+| 6 | 0,25 % | 2,5 |
+| 8 | 0,18 % | 1,8 |
+| 12 | 0,10 % | 1,0 |
+| 18 | 0,050 % | 0,50 |
+| 24 | 0,032 % | 0,32 |
+| 36 | 0,020 % | 0,20 |
+| 48 | 0,014 % | 0,14 |
+| 72 | 0,009 % | 0,09 |
 
-**Hvor kommer tallene fra?** De er kalibreret, så de rammer det, der reelt
-bruges i velafprøvede hjemmeopskrifter og i pizzamiljøet: en dej med få timer
-ved stuetemperatur ligger omkring en halv procent gær, et døgn ved
-stuetemperatur ligger under en tiendedel procent, og en to-døgns koldhævet dej
-lander typisk mellem 0,1 og 0,2 % IDY.
+**Kurven er stejlere end omvendt proportional.** Dobbelt så lang tid kræver
+mindre end den halve gærmængde – ved lange hævetider omkring en tredjedel.
+Grunden er, at gæren formerer sig undervejs: en lang hævning skal startes med
+langt færre celler, fordi de når at blive til mange. En ren halveringsregel
+giver derfor alt for meget gær i den lange ende, og det er præcis dér, en dej
+bliver ødelagt.
 
-**Det er ærligt sagt modellens svageste led.** Tabellen er praksisbaseret, ikke
-måledata, og der er reel spredning mellem gode opskrifter. Derfor:
+**Hvor kommer tallene fra?** Ankeret er den klassiske napolitanske dej: et døgn
+ved omkring 20 °C med cirka 1 g frisk gær pr. kg mel, altså omkring 0,3 g
+instant tørgær. Derfra er kurven lagt, så den også rammer de kortere deje, man
+kender fra praksis: cirka 1 g/kg til et halvt døgn og nogle få gram/kg til en
+dej, der skal være klar samme dag.
+
+**Det er ærligt sagt stadig modellens svageste led.** Tabellen er
+praksisbaseret, ikke måledata, og der er reel spredning mellem gode opskrifter.
+Derfor:
 
 - ligger den som en tabel ét sted og ikke som en formel spredt i koden,
 - er den nem at erstatte med bedre tal uden at røre hverken UI eller tidsplan,
-- er der tests, der låser dens vigtigste egenskaber fast: den er monoton
-  faldende, og fordobles tiden, halveres gærmængden nogenlunde.
+- er der tests, der låser den fast mod kendte referencedeje, ikke bare mod sig
+  selv.
+
+### Det faste loft: 0,4 g pr. kg mel
+
+Oven på modellen ligger en hård regel:
+
+> En dej, der hæver i **et døgn eller mere**, får aldrig mere end
+> **0,4 g instant tørgær pr. kg mel**.
+
+Reglen står i `MAX_YEAST_PERCENT_LONG_PLAN` og håndhæves af
+`capYeastForLongPlan()`. Den er ikke en konsekvens af modellen – den er et
+værn omkring den. Skulle ankertabellen eller en temperaturfaktor blive
+fejlkalibreret, kan resultatet stadig ikke blive en overgæret dej. En dej med
+for lidt gær skal bare have en time mere; en dej, der er hævet for langt, er
+tabt.
+
+I praksis binder loftet kun i kanterne: et døgn ved 20-22 °C lander af sig selv
+på 0,28-0,32 g/kg, mens et køligt køkken eller et langt køleforløb rammer
+loftet. En test kører alle kombinationer af tid, temperatur og forløb igennem
+og kontrollerer, at ingen af dem kommer over.
+
+### Når gæren ikke kan vejes
+
+Med de rigtige mængder kan et almindeligt køkkenvægt ikke veje gæren til en
+lang hævning: 0,3 g vises som 0 g. Derfor foreslår appen fortynding – 1 g gær
+i 100 ml af opskriftens vand giver 0,01 g pr. ml, så 0,3 g bliver til 30 ml af
+blandingen. Det er en langt mere præcis metode end at gætte på et knivspids.
 
 Gærprocenten begrænses til mellem 0,02 % og 1 % (`YEAST_PERCENT_LIMITS`).
 
@@ -248,13 +299,19 @@ Gæren deles i to, og de to dele beregnes hver for sig:
    10-12 timer ved stuetemperatur lander derved omkring 0,17 % af poolishens
    mel, hvilket svarer til gængs praksis.
 2. **Den endelige dejs gær** slås op ud fra hovedfermenteringen (alt efter
-   æltningen) og ganges derefter med `PREFERMENT_LEAVENING_CREDIT` = 0,5.
+   æltningen) og ganges derefter med `PREFERMENT_LEAVENING_CREDIT` = 0,3.
+   Loftet på 0,4 g/kg gælder også her.
 
-Faktoren på 0,5 er begrundelsen værd: en moden fordej indeholder allerede en
-stor, aktiv gærbestand, og uden nedsættelsen ville dejen hæve for hurtigt.
-Halvdelen er et bevidst rundt tal, ikke et måleresultat. Det giver en samlet
-gærmængde, der er lidt højere end den tilsvarende direkte dej, hvilket passer
-med, at en del af gærens arbejde bruges på at modne fordejen.
+Faktoren på 0,3 er begrundelsen værd: en moden fordej på 30-40 % af melet er i
+praksis en gærkultur og står for hovedparten af hævekraften. Uden nedsættelsen
+ville dejen hæve for hurtigt. Tallet er et bevidst rundt skøn, ikke et
+måleresultat.
+
+Resultatet er, at hovedparten af gæren i en indirekte dej ligger i fordejen,
+og at den samlede mængde bliver højere end i den tilsvarende direkte dej. Det
+er som det skal være: en del af gærens arbejde bruges på at modne fordejen.
+Loftet på 0,4 g/kg gælder derfor den endelige dej og ikke fordejens egen gær,
+som er styret af sin egen, langt kortere modningstid.
 
 ### Gærtyper
 

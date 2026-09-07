@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { FERMENTATION, MODEL_TEMP_RANGE_C, PREFERMENTS, PROCESS, ROOM_MAX_TOTAL_HOURS } from '../../config/dough';
+import {
+  FERMENTATION,
+  MAX_YEAST_PERCENT_LONG_PLAN,
+  MODEL_TEMP_RANGE_C,
+  PREFERMENTS,
+  PROCESS,
+  ROOM_MAX_TOTAL_HOURS,
+} from '../../config/dough';
 import {
   calculateYeastPercent,
+  capYeastForLongPlan,
   equivalentHoursAt20,
   prefermentHours,
   roomRateFactor,
@@ -237,6 +245,22 @@ describe('selectFermentationStrategy – fordeje', () => {
   });
 });
 
+describe('capYeastForLongPlan', () => {
+  it('rører ikke korte planer', () => {
+    expect(capYeastForLongPlan(0.004, 6)).toBe(0.004);
+    expect(capYeastForLongPlan(0.004, 23.75)).toBe(0.004);
+  });
+
+  it('lægger loft på planer fra et døgn og op', () => {
+    expect(capYeastForLongPlan(0.004, 24)).toBe(MAX_YEAST_PERCENT_LONG_PLAN);
+    expect(capYeastForLongPlan(0.004, 48)).toBe(MAX_YEAST_PERCENT_LONG_PLAN);
+  });
+
+  it('sætter ikke gærmængden op', () => {
+    expect(capYeastForLongPlan(0.0001, 48)).toBe(0.0001);
+  });
+});
+
 describe('equivalentHoursAt20', () => {
   it('vægter timer med fasens hastighed', () => {
     const hours = equivalentHoursAt20([
@@ -249,8 +273,16 @@ describe('equivalentHoursAt20', () => {
 
 describe('calculateYeastPercent', () => {
   it('rammer ankerpunkterne', () => {
-    expect(calculateYeastPercent(4)).toBeCloseTo(0.0045, 6);
-    expect(calculateYeastPercent(24)).toBeCloseTo(0.00085, 6);
+    expect(calculateYeastPercent(4)).toBeCloseTo(0.004, 6);
+    expect(calculateYeastPercent(24)).toBeCloseTo(0.00032, 6);
+  });
+
+  it('holder den klassiske dej på et døgn under 0,4 g pr. kg mel', () => {
+    // 24 ækvivalente timer ved 20 °C svarer til den klassiske napolitanske
+    // direkte dej. Praksis er cirka 1 g frisk gær pr. kg mel, altså omkring
+    // 0,3 g instant tørgær.
+    expect(calculateYeastPercent(24) * 1000).toBeLessThanOrEqual(0.4);
+    expect(calculateYeastPercent(24) * 1000).toBeGreaterThan(0.25);
   });
 
   it('falder monotont med længere fermentering', () => {
@@ -273,9 +305,17 @@ describe('calculateYeastPercent', () => {
     expect(calculateYeastPercent(500)).toBeGreaterThan(0);
   });
 
-  it('giver cirka halv gærmængde ved dobbelt så lang tid', () => {
+  it('falder stejlere end omvendt proportionalt ved lange hævetider', () => {
+    // Gæren formerer sig undervejs, så dobbelt så lang tid kræver MINDRE end
+    // den halve mængde. Kurven må dog ikke blive vilkårligt stejl.
     const ratio = calculateYeastPercent(12) / calculateYeastPercent(24);
-    expect(ratio).toBeGreaterThan(1.7);
-    expect(ratio).toBeLessThan(2.3);
+    expect(ratio).toBeGreaterThan(2.2);
+    expect(ratio).toBeLessThan(4);
+  });
+
+  it('bruger stadig cirka det dobbelte ved korte hævetider', () => {
+    const ratio = calculateYeastPercent(2) / calculateYeastPercent(4);
+    expect(ratio).toBeGreaterThan(1.6);
+    expect(ratio).toBeLessThan(2.4);
   });
 });

@@ -10,10 +10,22 @@
 import { PREFERMENTS, PREFERMENT_LEAVENING_CREDIT, PRECISION_SCALE_YEAST_G } from '../config/dough';
 import type { DoughInput, DoughPlan, Issue, PlanResult } from '../types';
 import { classificationBody, classificationHeadline, classifySchedule } from './classification';
-import { calculateYeastPercent, selectFermentationStrategy } from './fermentation';
+import { calculateYeastPercent, capYeastForLongPlan, selectFermentationStrategy } from './fermentation';
 import { calculateIngredients, type PrefermentSpec } from './ingredients';
 import { createDoughSchedule } from './schedule';
 import { validateInputs } from './validation';
+
+/**
+ * Råd ved meget små gærmængder.
+ *
+ * En lang hævning bruger så lidt gær, at et almindeligt køkkenvægt ikke kan
+ * veje den. Fortyndingsmetoden er den praktiske udvej: 1 g gær i 100 ml af
+ * opskriftens vand giver 0,01 g gær pr. ml.
+ */
+export function tinyYeastAdvice(yeastG: number): string {
+  const millilitres = Math.round(yeastG * 100);
+  return `Gærmængden er så lille, at den kræver en præcisionsvægt. Ellers: rør 1 g gær ud i 100 ml af opskriftens vand, brug ${millilitres} ml af blandingen, og kassér resten.`;
+}
 
 export function createDoughPlan(input: DoughInput, now: Date = new Date()): PlanResult {
   const validation = validateInputs(input, now);
@@ -42,14 +54,21 @@ export function createDoughPlan(input: DoughInput, now: Date = new Date()): Plan
       kind: fermentation.preferment.kind,
       flourShare: spec.flourShare,
       hydration: spec.hydration,
-      yeastPercent: calculateYeastPercent(fermentation.preferment.equivalentHoursAt20),
+      // Fordejens egen gær ud fra dens egen modningstid, korrigeret for
+      // hvor tør fordejen er.
+      yeastPercent:
+        calculateYeastPercent(fermentation.preferment.equivalentHoursAt20) * spec.yeastFactor,
       hours: fermentation.preferment.hours,
     };
   }
 
-  const mainYeastPercent =
+  // Loftet for lange planer gælder den gær, der kommer i den endelige dej.
+  // Fordejens egen gær er styret af sin egen, kortere modningstid.
+  const mainYeastPercent = capYeastForLongPlan(
     calculateYeastPercent(fermentation.equivalentHoursAt20) *
-    (preferment ? PREFERMENT_LEAVENING_CREDIT : 1);
+      (preferment ? PREFERMENT_LEAVENING_CREDIT : 1),
+    fermentation.totalHours,
+  );
 
   const ingredients = calculateIngredients({
     pizzaCount: input.pizzaCount,
@@ -77,8 +96,7 @@ export function createDoughPlan(input: DoughInput, now: Date = new Date()): Plan
   if (ingredients.yeastG < PRECISION_SCALE_YEAST_G) {
     warnings.push({
       code: 'tiny-yeast-amount',
-      message:
-        'Gærmængden er meget lille. Den kræver en præcisionsvægt – ellers brug et knivspids-skøn og forvent lidt større udsving.',
+      message: tinyYeastAdvice(ingredients.yeastG),
     });
   }
 

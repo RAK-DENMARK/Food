@@ -30,6 +30,8 @@
 
 import {
   FERMENTATION,
+  LONG_PLAN_HOURS,
+  MAX_YEAST_PERCENT_LONG_PLAN,
   METHOD_MIN_TOTAL_HOURS,
   MODEL_TEMP_RANGE_C,
   PREFERMENTS,
@@ -317,4 +319,18 @@ export function calculateYeastPercent(equivalentHours: number): number {
 
 function clampYeast(percent: number): number {
   return clamp(percent, YEAST_PERCENT_LIMITS.min, YEAST_PERCENT_LIMITS.max);
+}
+
+/**
+ * Fast loft over gærmængden i lange planer.
+ *
+ * Hæver dejen i et døgn eller mere, må der aldrig komme mere end 0,4 g
+ * instant tørgær pr. kg mel i. Loftet ligger uden på selve modellen, så en
+ * fejlkalibrering i ankertabellen eller i temperaturfaktorerne ikke kan føre
+ * til en overgæret dej. Det er lettere at give dejen en time mere end at
+ * redde en dej, der er hævet for langt.
+ */
+export function capYeastForLongPlan(percent: number, totalHours: number): number {
+  if (totalHours < LONG_PLAN_HOURS) return percent;
+  return Math.min(percent, MAX_YEAST_PERCENT_LONG_PLAN);
 }

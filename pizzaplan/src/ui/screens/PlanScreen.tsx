@@ -86,7 +86,7 @@ export function PlanScreen({ navigation }: ScreenProps<'Plan'>) {
           amount={formatYeast(ingredients.yeastG)}
           note={
             ingredients.yeastG < PRECISION_SCALE_YEAST_G
-              ? 'Så lille en mængde kræver en præcisionsvægt.'
+              ? 'Kræver præcisionsvægt eller fortynding – se ovenfor.'
               : undefined
           }
         />
